@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Air Quality Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Sarabun:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #07090f;
+    --card: #0d1117;
+    --border: #1a2535;
+    --accent: #00d4ff;
+    --green: #00ff88;
+    --yellow: #ffcc00;
+    --red: #ff4455;
+    --text: #c8dff0;
+    --muted: #3a5570;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sarabun', sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo-area h1 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.1rem;
+    color: var(--accent);
+    letter-spacing: 3px;
+  }
+
+  .logo-area p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    font-family: 'Share Tech Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #0d1f10;
+    border: 1px solid #1a4020;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--green);
+  }
+
+  .status-pill .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* URL input */
+  .url-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    align-items: center;
+  }
+
+  .url-bar input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .url-bar input:focus { border-color: var(--accent); }
+  .url-bar input::placeholder { color: var(--muted); }
+
+  .url-bar button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+
+  .url-bar button:hover { opacity: 0.85; }
+
+  /* Stat cards */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeIn 0.4s ease both;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .stat-card.pm25::before { background: var(--accent); }
+  .stat-card.pm10::before { background: var(--yellow); }
+  .stat-card.temp::before { background: #ff8844; }
+  .stat-card.humi::before { background: #4488ff; }
+
+  .stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .stat-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-card.pm25 .stat-val { color: var(--accent); }
+  .stat-card.pm10 .stat-val { color: var(--yellow); }
+  .stat-card.temp .stat-val { color: #ff8844; }
+  .stat-card.humi .stat-val { color: #4488ff; }
+
+  .stat-unit { font-size: 0.65rem; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+
+  .stat-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-family: 'Share Tech Mono', monospace;
+    margin-top: 6px;
+  }
+
+  .badge-good { background: #0d2a1a; color: var(--green); border: 1px solid #1a4a2a; }
+  .badge-warn { background: #2a2000; color: var(--yellow); border: 1px solid #4a3800; }
+  .badge-danger { background: #2a0d10; color: var(--red); border: 1px solid #4a1a1f; }
+
+  /* Charts row */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 640px) { .charts-grid { grid-template-columns: 1fr; } }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    animation: fadeIn 0.5s ease both;
+  }
+
+  .chart-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+
+  .chart-wrap { position: relative; height: 180px; display: flex; align-items: center; justify-content: center; }
+  .chart-wrap canvas { max-width: 180px !important; }
+
+  /* Table */
+  .table-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    overflow-x: auto;
+    animation: fadeIn 0.6s ease both;
+  }
+
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .table-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .row-count {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+
+  thead th {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #0d1520;
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: #0d1a28; }
+  tbody tr:last-child { border-bottom: none; }
+
+  tbody td {
+    padding: 8px 10px;
+    font-size: 0.78rem;
+  }
+
+  tbody td:first-child { color: var(--muted); font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; }
+
+  .val-pm25 { color: var(--accent); font-family: 'Share Tech Mono', monospace; }
+  .val-pm10 { color: var(--yellow); font-family: 'Share Tech Mono', monospace; }
+  .val-temp { color: #ff8844; font-family: 'Share Tech Mono', monospace; }
+  .val-humi { color: #4488ff; font-family: 'Share Tech Mono', monospace; }
+
+  /* Status col */
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* Loading / Error */
+  .msg {
+    text-align: center;
+    padding: 40px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .msg.error { color: var(--red); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* last updated */
+  .last-update {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-align: right;
+    margin-top: 12px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo-area">
+      <h1>AIR QUALITY MONITOR</h1>
+      <p>PM2.5 / PM10 — REALTIME DASHBOARD</p>
+    </div>
+    <div class="status-pill">
+      <div class="dot"></div>
+      <span id="statusText">READY</span>
+    </div>
+  </header>
+
+  <!-- URL Input -->
+  <div class="url-bar">
+    <input type="text" id="sheetUrl" placeholder="วาง Apps Script Web App URL ที่นี่..."/>
+    <button onclick="loadData()">LOAD DATA</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid" id="statGrid">
+    <div class="stat-card pm25">
+      <div class="stat-label">PM2.5</div>
+      <div class="stat-val" id="valPM25">—</div>
+      <div class="stat-unit">μg/m³</div>
+      <div id="badgePM25"></div>
+    </div>
+    <div class="stat-card pm10">
+      <div class="stat-label">PM10</div>
+      <div class="stat-val" id="valPM10">—</div>
+      <div class="stat-unit">μg/m³</div>
+      <div id="badgePM10"></div>
+    </div>
+    <div class="stat-card temp">
+      <div class="stat-label">TEMPERATURE</div>
+      <div class="stat-val" id="valTemp">—</div>
+      <div class="stat-unit">°C</div>
+    </div>
+    <div class="stat-card humi">
+      <div class="stat-label">HUMIDITY</div>
+      <div class="stat-val" id="valHumi">—</div>
+      <div class="stat-unit">%RH</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">PM2.5 TREND</div>
+      <div class="chart-wrap"><canvas id="chartPM25"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">PM10 TREND</div>
+      <div class="chart-wrap"><canvas id="chartPM10"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">TEMPERATURE</div>
+      <div class="chart-wrap"><canvas id="chartTemp"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">HUMIDITY</div>
+      <div class="chart-wrap"><canvas id="chartHumi"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">DATA LOG</div>
+      <div class="row-count" id="rowCount">— RECORDS</div>
+    </div>
+    <div id="tableWrap"><div class="msg">กรอก URL แล้วกด LOAD DATA ครับ</div></div>
+  </div>
+
+  <div class="last-update" id="lastUpdate"></div>
+
+</div>
+
+<script>
+  let charts = {};
+
+  function getAQIBadge(val, type) {
+    if (type === 'pm25') {
+      if (val <= 25) return '<div class="stat-badge badge-good">GOOD</div>';
+      if (val <= 37) return '<div class="stat-badge badge-warn">MODERATE</div>';
+      return '<div class="stat-badge badge-danger">UNHEALTHY</div>';
+    }
+    if (type === 'pm10') {
+      if (val <= 50) return '<div class="stat-badge badge-good">GOOD</div>';
+      if (val <= 80) return '<div class="stat-badge badge-warn">MODERATE</div>';
+      return '<div class="stat-badge badge-danger">UNHEALTHY</div>';
+    }
+    return '';
+  }
+
+  function getRowBadge(val, type) {
+    if (type === 'pm25') {
+      if (val <= 25) return '<span class="pill badge-good">GOOD</span>';
+      if (val <= 37) return '<span class="pill badge-warn">MOD</span>';
+      return '<span class="pill badge-danger">HIGH</span>';
+    }
+    return '';
+  }
+
+  function makeChart(id, labels, data, color) {
+    const ctx = document.getElementById(id).getContext('2d');
+    if (charts[id]) charts[id].destroy();
+
+    // Config per chart type
+    const configs = {
+      chartPM25: { max: 100, label: 'PM2.5', unit: 'μg/m³' },
+      chartPM10:  { max: 150, label: 'PM10',  unit: 'μg/m³' },
+      chartTemp:  { max: 50,  label: 'TEMP',  unit: '°C' },
+      chartHumi:  { max: 100, label: 'HUM',   unit: '%RH' }
+    };
+
+    const cfg = configs[id] || { max: 100, label: '', unit: '' };
+    const latest = data[data.length - 1] || 0;
+    const pct = Math.min(latest / cfg.max, 1);
+    const remaining = 1 - pct;
+
+    charts[id] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [pct, remaining],
+          backgroundColor: [color, '#0d1a28'],
+          borderWidth: 0,
+          circumference: 270,
+          rotation: 225
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '72%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false },
+          beforeDraw(chart) {}
+        },
+        animation: { animateRotate: true, duration: 800 }
+      },
+      plugins: [{
+        id: 'centerText',
+        beforeDraw(chart) {
+          const { ctx, chartArea: { top, bottom, left, right } } = chart;
+          const cx = (left + right) / 2;
+          const cy = (top + bottom) / 2 + 10;
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = color;
+          ctx.font = `700 1.4rem "Share Tech Mono", monospace`;
+          ctx.fillText(latest.toFixed(1), cx, cy - 8);
+          ctx.fillStyle = '#3a5570';
+          ctx.font = `0.55rem "Share Tech Mono", monospace`;
+          ctx.fillText(cfg.unit, cx, cy + 12);
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  function formatTs(ts) {
+    if (!ts) return '-';
+    try {
+      const d = new Date(ts);
+      if (isNaN(d)) return ts;
+      return d.toLocaleString('th-TH', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    } catch { return ts; }
+  }
+
+  function loadData() {
+    const url = document.getElementById('sheetUrl').value.trim();
+    if (!url) { alert('กรุณากรอก URL ก่อนครับ'); return; }
+
+    document.getElementById('statusText').textContent = 'LOADING...';
+    document.getElementById('tableWrap').innerHTML = '<div class="msg">กำลังโหลดข้อมูล...</div>';
+
+    const old = document.getElementById('jsonp-script');
+    if (old) old.remove();
+
+    window._jsonpCallback = function(data) { renderData(data); };
+
+    const script = document.createElement('script');
+    script.id = 'jsonp-script';
+    script.src = url + '?callback=_jsonpCallback';
+    script.onerror = () => {
+      document.getElementById('statusText').textContent = 'ERROR';
+      document.getElementById('tableWrap').innerHTML = '<div class="msg error">โหลดข้อมูลไม่ได้ครับ ตรวจสอบ URL อีกครั้ง</div>';
+    };
+    document.body.appendChild(script);
+  }
+
+  function renderData(data) {
+    try {
+      if (!data || data.length === 0) {
+        document.getElementById('tableWrap').innerHTML = '<div class="msg error">ไม่พบข้อมูลครับ</div>';
+        return;
+      }
+
+      const latest = data[data.length - 1];
+      const pm25 = parseFloat(latest['PM2.5'] || latest['pm25'] || 0);
+      const pm10 = parseFloat(latest['PM10'] || latest['pm10'] || 0);
+      const temp = parseFloat(latest['Temp'] || latest['temp'] || 0);
+      const humi = parseFloat(latest['Humidity'] || latest['humidity'] || 0);
+
+      document.getElementById('valPM25').textContent = pm25.toFixed(1);
+      document.getElementById('valPM10').textContent = pm10.toFixed(1);
+      document.getElementById('valTemp').textContent = temp.toFixed(1);
+      document.getElementById('valHumi').textContent = humi.toFixed(1);
+      document.getElementById('badgePM25').innerHTML = getAQIBadge(pm25, 'pm25');
+      document.getElementById('badgePM10').innerHTML = getAQIBadge(pm10, 'pm10');
+
+      const slice = data.slice(-50);
+      const labels = slice.map(r => {
+        const ts = r['Timestamp'] || r['timestamp'] || '';
+        return ts.toString().slice(5, 16);
+      });
+
+      makeChart('chartPM25', labels, slice.map(r => parseFloat(r['PM2.5'] || r['pm25'] || 0)), '#00d4ff');
+      makeChart('chartPM10', labels, slice.map(r => parseFloat(r['PM10'] || r['pm10'] || 0)), '#ffcc00');
+      makeChart('chartTemp', labels, slice.map(r => parseFloat(r['Temp'] || r['temp'] || 0)), '#ff8844');
+      makeChart('chartHumi', labels, slice.map(r => parseFloat(r['Humidity'] || r['humidity'] || 0)), '#4488ff');
+
+      const rows = [...data].reverse().slice(0, 20);
+      document.getElementById('rowCount').textContent = data.length + ' RECORDS';
+      document.getElementById('tableWrap').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>TIMESTAMP</th><th>PM2.5</th><th>PM10</th><th>TEMP</th><th>HUMIDITY</th><th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => {
+              const p25 = parseFloat(r['PM2.5'] || r['pm25'] || 0);
+              const p10 = parseFloat(r['PM10'] || r['pm10'] || 0);
+              const t = parseFloat(r['Temp'] || r['temp'] || 0);
+              const h = parseFloat(r['Humidity'] || r['humidity'] || 0);
+              return `<tr>
+                <td>${formatTs(r['Timestamp'] || r['timestamp'] || '')}</td>
+                <td class="val-pm25">${p25.toFixed(1)}</td>
+                <td class="val-pm10">${p10.toFixed(1)}</td>
+                <td class="val-temp">${t.toFixed(1)}°</td>
+                <td class="val-humi">${h.toFixed(1)}%</td>
+                <td>${getRowBadge(p25, 'pm25')}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+
+      document.getElementById('statusText').textContent = 'LIVE';
+      document.getElementById('lastUpdate').textContent = 'LAST UPDATED: ' + new Date().toLocaleString('th-TH');
+    } catch(e) {
+      document.getElementById('statusText').textContent = 'ERROR';
+      document.getElementById('tableWrap').innerHTML = '<div class="msg error">เกิดข้อผิดพลาดครับ</div>';
+    }
+  }
+
+  // Demo mode with mock data
+  function loadDemo() {
+    const now = new Date();
+    const mock = Array.from({length: 30}, (_, i) => {
+      const t = new Date(now - (29 - i) * 5 * 60000);
+      return {
+        'Timestamp': t.toLocaleString('th-TH'),
+        'PM2.5': (Math.random() * 40 + 5).toFixed(1),
+        'PM10': (Math.random() * 60 + 10).toFixed(1),
+        'Temp': (Math.random() * 5 + 26).toFixed(1),
+        'Humidity': (Math.random() * 20 + 55).toFixed(1)
+      };
+    });
+
+    document.getElementById('sheetUrl').value = 'DEMO MODE';
+
+    const latest = mock[mock.length - 1];
+    document.getElementById('valPM25').textContent = latest['PM2.5'];
+    document.getElementById('valPM10').textContent = latest['PM10'];
+    document.getElementById('valTemp').textContent = latest['Temp'];
+    document.getElementById('valHumi').textContent = latest['Humidity'];
+    document.getElementById('badgePM25').innerHTML = getAQIBadge(parseFloat(latest['PM2.5']), 'pm25');
+    document.getElementById('badgePM10').innerHTML = getAQIBadge(parseFloat(latest['PM10']), 'pm10');
+
+    const labels = mock.map(r => r['Timestamp'].slice(0, 5));
+    makeChart('chartPM25', labels, mock.map(r => parseFloat(r['PM2.5'])), '#00d4ff');
+    makeChart('chartPM10', labels, mock.map(r => parseFloat(r['PM10'])), '#ffcc00');
+    makeChart('chartTemp', labels, mock.map(r => parseFloat(r['Temp'])), '#ff8844');
+    makeChart('chartHumi', labels, mock.map(r => parseFloat(r['Humidity'])), '#4488ff');
+
+    document.getElementById('rowCount').textContent = mock.length + ' RECORDS';
+    const rows = [...mock].reverse().slice(0, 10);
+    document.getElementById('tableWrap').innerHTML = `
+      <table>
+        <thead><tr><th>TIMESTAMP</th><th>PM2.5</th><th>PM10</th><th>TEMP</th><th>HUMIDITY</th><th>STATUS</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const p25 = parseFloat(r['PM2.5']);
+          return `<tr>
+            <td>${r['Timestamp']}</td>
+            <td class="val-pm25">${r['PM2.5']}</td>
+            <td class="val-pm10">${r['PM10']}</td>
+            <td class="val-temp">${r['Temp']}°</td>
+            <td class="val-humi">${r['Humidity']}%</td>
+            <td>${getRowBadge(p25, 'pm25')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+
+    document.getElementById('statusText').textContent = 'DEMO';
+    document.getElementById('lastUpdate').textContent = 'DEMO MODE — ' + new Date().toLocaleString('th-TH');
+  }
+
+  let lastTimestamp = null;
+
+  function smartRefresh() {
+    const url = 'https://script.google.com/macros/s/AKfycbzQVa8DL21CDDQTb4ffwNd8UQSwQXItb23IMkQjTQRzaFr73s_Vd2z28IJrZ5tJeRttCg/exec';
+
+    const old = document.getElementById('jsonp-check');
+    if (old) old.remove();
+
+    window._checkCallback = function(data) {
+      if (!data || data.length === 0) return;
+      const latest = data[data.length - 1];
+      const ts = latest['Timestamp'] || latest['timestamp'] || '';
+      if (ts !== lastTimestamp) {
+        lastTimestamp = ts;
+        renderData(data);
+        document.getElementById('lastUpdate').textContent =
+          'LAST UPDATED: ' + new Date().toLocaleString('th-TH') + ' — NEW DATA ✓';
+      }
+    };
+
+    const script = document.createElement('script');
+    script.id = 'jsonp-check';
+    script.src = url + '?callback=_checkCallback&t=' + Date.now();
+    document.body.appendChild(script);
+  }
+
+  // Auto load on start
+  window.onload = function() {
+    document.getElementById('sheetUrl').value = 'https://script.google.com/macros/s/AKfycbzQVa8DL21CDDQTb4ffwNd8UQSwQXItb23IMkQjTQRzaFr73s_Vd2z28IJrZ5tJeRttCg/exec';
+    loadData();
+    setInterval(smartRefresh, 5 * 1000);
+  };
+</script>
+</body>
+</html>
